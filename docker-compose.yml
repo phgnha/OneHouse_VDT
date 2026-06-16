@@ -1,0 +1,353 @@
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.3.7
+    container_name: onehouse-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+    ports:
+      - "19092:19092"
+      - "19644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - onehouse
+
+  redpanda-console:
+    image: redpandadata/console:v2.8.4
+    container_name: onehouse-redpanda-console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8084:8080"
+    networks:
+      - onehouse
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: onehouse-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+      MINIO_DOMAIN: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      onehouse:
+        aliases:
+          - warehouse.minio
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    container_name: onehouse-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password}
+      MINIO_WAREHOUSE_BUCKET: ${MINIO_WAREHOUSE_BUCKET:-warehouse}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/$${MINIO_WAREHOUSE_BUCKET};
+      mc anonymous set none local/$${MINIO_WAREHOUSE_BUCKET};
+      exit 0;
+      "
+    networks:
+      - onehouse
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:1.6.0
+    container_name: onehouse-iceberg-rest
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      CATALOG_WAREHOUSE: s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_URI: jdbc:sqlite:file:/tmp/iceberg_rest
+    ports:
+      - "8181:8181"
+    networks:
+      - onehouse
+
+  trino:
+    image: trinodb/trino:481
+    container_name: onehouse-trino
+    depends_on:
+      iceberg-rest:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs/trino/etc:/etc/trino:ro
+    networks:
+      - onehouse
+
+  simulator:
+    build:
+      context: ./simulator
+    container_name: onehouse-simulator
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      ONEHOUSE_KAFKA_TOPIC: ${ONEHOUSE_KAFKA_TOPIC:-telecom.raw_logs}
+      SIMULATOR_EVENTS_PER_SECOND: ${SIMULATOR_EVENTS_PER_SECOND:-20}
+      SIMULATOR_DUPLICATE_RATIO: ${SIMULATOR_DUPLICATE_RATIO:-0.01}
+      SIMULATOR_BAD_RECORD_RATIO: ${SIMULATOR_BAD_RECORD_RATIO:-0.005}
+    networks:
+      - onehouse
+    restart: unless-stopped
+
+  spark-streaming:
+    image: tabulario/spark-iceberg:3.5.1_1.5.0
+    container_name: onehouse-spark-streaming
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      iceberg-rest:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      ONEHOUSE_KAFKA_TOPIC: ${ONEHOUSE_KAFKA_TOPIC:-telecom.raw_logs}
+      ICEBERG_CATALOG: iceberg
+      ICEBERG_WAREHOUSE: s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
+      ICEBERG_REST_URI: http://iceberg-rest:8181
+      S3_ENDPOINT: http://minio:9000
+      SPARK_CHECKPOINT_LOCATION: /tmp/onehouse/checkpoints/bronze_telecom_events
+    command:
+      - >
+        spark-submit
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1
+        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        --conf spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
+        --conf spark.sql.catalog.iceberg.catalog-impl=org.apache.iceberg.rest.RESTCatalog
+        --conf spark.sql.catalog.iceberg.uri=http://iceberg-rest:8181
+        --conf spark.sql.catalog.iceberg.warehouse=s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
+        --conf spark.sql.catalog.iceberg.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+        --conf spark.sql.catalog.iceberg.s3.endpoint=http://minio:9000
+        --conf spark.sql.catalog.iceberg.s3.path-style-access=true
+        --conf spark.sql.defaultCatalog=iceberg
+        --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
+        --conf spark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER:-admin}
+        --conf spark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD:-password}
+        --conf spark.hadoop.fs.s3a.path.style.access=true
+        --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
+        --conf spark.sql.shuffle.partitions=4
+        /opt/onehouse/spark/jobs/stream_to_iceberg.py
+    volumes:
+      - ./spark/jobs:/opt/onehouse/spark/jobs:ro
+      - spark_checkpoints:/tmp/onehouse/checkpoints
+    ports:
+      - "4040:4040"
+    networks:
+      - onehouse
+    restart: unless-stopped
+
+  dbt:
+    build:
+      context: ./docker/dbt
+    container_name: onehouse-dbt
+    depends_on:
+      trino:
+        condition: service_started
+    environment:
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+      TRINO_USER: ${TRINO_USER:-admin}
+      DBT_PROFILES_DIR: /opt/onehouse/dbt_profiles
+    working_dir: /opt/onehouse/dbt_onehouse
+    volumes:
+      - ./dbt_onehouse:/opt/onehouse/dbt_onehouse
+      - ./dbt_profiles:/opt/onehouse/dbt_profiles:ro
+    entrypoint: ["dbt"]
+    networks:
+      - onehouse
+    profiles:
+      - tools
+
+  airflow-postgres:
+    image: postgres:16-alpine
+    container_name: onehouse-airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - onehouse
+
+  airflow-init:
+    build:
+      context: ./docker/airflow
+    container_name: onehouse-airflow-init
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+    entrypoint: /bin/bash
+    command:
+      - -lc
+      - >
+        airflow db migrate &&
+        airflow users create
+        --username "$${AIRFLOW_ADMIN_USERNAME}"
+        --firstname OneHouse
+        --lastname Admin
+        --role Admin
+        --email "$${AIRFLOW_ADMIN_EMAIL}"
+        --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - ./dbt_onehouse:/opt/airflow/dbt_onehouse
+      - ./dbt_profiles:/opt/airflow/dbt_profiles:ro
+      - airflow_logs:/opt/airflow/logs
+    networks:
+      - onehouse
+    profiles:
+      - orchestration
+
+  airflow-webserver:
+    build:
+      context: ./docker/airflow
+    container_name: onehouse-airflow-webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+      TRINO_USER: ${TRINO_USER:-admin}
+      DBT_PROFILES_DIR: /opt/airflow/dbt_profiles
+    command: ["airflow", "webserver"]
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - ./dbt_onehouse:/opt/airflow/dbt_onehouse
+      - ./dbt_profiles:/opt/airflow/dbt_profiles:ro
+      - airflow_logs:/opt/airflow/logs
+    networks:
+      - onehouse
+    profiles:
+      - orchestration
+
+  airflow-scheduler:
+    build:
+      context: ./docker/airflow
+    container_name: onehouse-airflow-scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+      TRINO_USER: ${TRINO_USER:-admin}
+      DBT_PROFILES_DIR: /opt/airflow/dbt_profiles
+    command: ["airflow", "scheduler"]
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - ./dbt_onehouse:/opt/airflow/dbt_onehouse
+      - ./dbt_profiles:/opt/airflow/dbt_profiles:ro
+      - airflow_logs:/opt/airflow/logs
+    networks:
+      - onehouse
+    profiles:
+      - orchestration
+
+  superset:
+    build:
+      context: ./docker/superset
+    container_name: onehouse-superset
+    depends_on:
+      trino:
+        condition: service_started
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-change-me-in-real-deployments}
+      SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@example.com}
+      SUPERSET_TRINO_URI: ${SUPERSET_TRINO_URI:-trino://admin@trino:8080/iceberg/gold}
+    ports:
+      - "8088:8088"
+    volumes:
+      - superset_home:/app/superset_home
+      - ./superset:/app/onehouse/superset:ro
+    command: ["/bin/bash", "/app/onehouse/superset/bootstrap.sh"]
+    networks:
+      - onehouse
+    profiles:
+      - visualization
+
+networks:
+  onehouse:
+    name: onehouse
+
+volumes:
+  minio_data:
+  spark_checkpoints:
+  airflow_postgres_data:
+  airflow_logs:
+  superset_home:
