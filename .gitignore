@@ -1,0 +1,24 @@
+.env
+__pycache__/
+*.py[cod]
+*.log
+.pytest_cache/
+.mypy_cache/
+
+# Runtime data
+logs/
+tmp/
+warehouse/
+spark/checkpoints/
+superset/home/
+
+# dbt generated artifacts
+dbt_onehouse/target/
+dbt_onehouse/dbt_packages/
+dbt_onehouse/logs/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
