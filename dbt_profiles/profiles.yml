@@ -1,0 +1,13 @@
+onehouse:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none
+      user: "{{ env_var('TRINO_USER', 'admin') }}"
+      host: "{{ env_var('TRINO_HOST', 'trino') }}"
+      port: "{{ env_var('TRINO_PORT', '8080') | int }}"
+      database: iceberg
+      schema: analytics
+      http_scheme: http
+      threads: 4

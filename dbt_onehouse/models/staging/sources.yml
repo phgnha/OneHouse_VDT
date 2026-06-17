@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: iceberg
+    schema: bronze
+    description: Append-only telecom logs written by Spark Structured Streaming.
+    tables:
+      - name: telecom_events
+        description: Raw parsed CDR and mobile internet events from Kafka.
+        loaded_at_field: ingested_at
+        config:
+          freshness:
+            warn_after:
+              count: 5
+              period: minute
+            error_after:
+              count: 30
+              period: minute
+        columns:
+          - name: event_id
+            description: Source event identifier.
+            tests:
+              - not_null
+          - name: event_ts
+            description: Event time from the network source.
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+          - name: cell_id
+            description: BTS cell identifier.
+          - name: raw_payload
+            description: Original Kafka JSON payload for audit/debug.

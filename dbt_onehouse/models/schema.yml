@@ -1,0 +1,111 @@
+version: 2
+
+seeds:
+  - name: bts_metadata
+    description: BTS reference metadata used to enrich network events.
+    columns:
+      - name: cell_id
+        tests:
+          - not_null
+          - unique
+      - name: latitude
+        tests:
+          - not_null
+          - accepted_range:
+              min_value: 8.0
+              max_value: 23.5
+      - name: longitude
+        tests:
+          - not_null
+          - accepted_range:
+              min_value: 102.0
+              max_value: 110.5
+
+models:
+  - name: stg_telecom_events
+    description: Typed and normalized Bronze telecom events.
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+      - name: event_ts
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - accepted_values:
+              values: ["VOICE", "DATA"]
+      - name: network_type
+        tests:
+          - accepted_values:
+              values: ["4G", "5G"]
+
+  - name: silver_cell_events
+    description: Deduplicated, cleansed, BTS-enriched event fact table.
+    tests:
+      - vietnam_coordinate_range:
+          latitude_column: latitude
+          longitude_column: longitude
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique
+      - name: cell_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('bts_metadata')
+              field: cell_id
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
+
+  - name: gold_network_kpis
+    description: Incremental 15-minute KPI aggregates by BTS cell and network type.
+    tests:
+      - not_empty
+      - vietnam_coordinate_range:
+          latitude_column: latitude
+          longitude_column: longitude
+    columns:
+      - name: window_start
+        tests:
+          - not_null
+      - name: cell_id
+        tests:
+          - not_null
+      - name: drop_call_rate_pct
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: qoe_issue_rate_pct
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: cell_load_score
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 100
+
+  - name: gold_cell_heatmap
+    description: Latest per-cell serving view for Superset geographical heatmap.
+    tests:
+      - vietnam_coordinate_range:
+          latitude_column: latitude
+          longitude_column: longitude
+    columns:
+      - name: cell_id
+        tests:
+          - not_null
+          - unique
+      - name: severity
+        tests:
+          - accepted_values:
+              values: ["NORMAL", "WARNING", "CRITICAL"]

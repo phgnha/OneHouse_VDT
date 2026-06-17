@@ -1,0 +1,48 @@
+name: onehouse
+version: 1.0.0
+config-version: 2
+
+profile: onehouse
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  onehouse:
+    staging:
+      +schema: staging
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: table
+    gold:
+      +schema: gold
+      +tags: ["gold"]
+
+seeds:
+  onehouse:
+    bts_metadata:
+      +schema: reference
+      +quote_columns: false
+      +column_types:
+        cell_id: varchar
+        province: varchar
+        district: varchar
+        latitude: double
+        longitude: double
+        region: varchar
+        vendor: varchar
+        band: varchar
+        site_capacity_gbps: double
+        active_from: date
+
+vars:
+  gold_delta_minutes: 30

@@ -1,0 +1,9 @@
+cell_id,province,district,latitude,longitude,region,vendor,band,site_capacity_gbps,active_from
+HN_CAU_GIAY_001,Ha Noi,Cau Giay,21.0362,105.7829,North,Ericsson,n78,18.0,2024-01-01
+HN_HOAN_KIEM_002,Ha Noi,Hoan Kiem,21.0287,105.8524,North,Nokia,B3,8.0,2023-06-15
+HCM_Q1_001,Ho Chi Minh,Quan 1,10.7769,106.7009,South,Ericsson,n78,20.0,2024-02-01
+HCM_THU_DUC_002,Ho Chi Minh,Thu Duc,10.8494,106.7537,South,Samsung,B7,10.0,2023-09-20
+DN_HAI_CHAU_001,Da Nang,Hai Chau,16.0544,108.2022,Central,Nokia,B3,7.5,2023-04-10
+HP_LE_CHAN_001,Hai Phong,Le Chan,20.8449,106.6881,North,Samsung,B8,5.5,2022-11-05
+CT_NINH_KIEU_001,Can Tho,Ninh Kieu,10.0452,105.7469,South,Nokia,B3,7.0,2023-03-12
+QNH_HA_LONG_001,Quang Ninh,Ha Long,20.9599,107.0425,North,Ericsson,B7,8.5,2023-08-01
