@@ -22,3 +22,14 @@ dbt_onehouse/logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# Backup files
+*.bak
+*.tmp
+
+# Reports
+report/
+
+# Temporary files
+test.py
+walkthrough.md
