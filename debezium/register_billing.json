@@ -1,0 +1,23 @@
+{
+  "name": "viettel-billing-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres-billing",
+    "database.port": "5432",
+    "database.user": "viettel",
+    "database.password": "viettel",
+    "database.dbname": "viettel_billing",
+    "topic.prefix": "billing",
+    "table.include.list": "public.billing_plans,public.subscribers",
+    "plugin.name": "pgoutput",
+    "publication.name": "billing_pub",
+    "slot.name": "debezium_billing_slot",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "rewrite"
+  }
+}

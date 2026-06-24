@@ -138,10 +138,48 @@ services:
       - onehouse
     restart: unless-stopped
 
+  spark-master:
+    build:
+      context: ./docker/spark
+    container_name: onehouse-spark-master
+    environment:
+      SPARK_MODE: master
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+    ports:
+      - "7077:7077"
+      - "8085:8080"
+    networks:
+      - onehouse
+
+  spark-worker:
+    build:
+      context: ./docker/spark
+    container_name: onehouse-spark-worker
+    depends_on:
+      spark-master:
+        condition: service_started
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
+      SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2g}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+    ports:
+      - "8086:8081"
+    networks:
+      - onehouse
+
   spark-streaming:
-    image: tabulario/spark-iceberg:3.5.1_1.5.0
+    build:
+      context: ./docker/spark
     container_name: onehouse-spark-streaming
     depends_on:
+      spark-master:
+        condition: service_started
+      spark-worker:
+        condition: service_started
       redpanda:
         condition: service_healthy
       iceberg-rest:
@@ -149,44 +187,147 @@ services:
       minio-init:
         condition: service_completed_successfully
     environment:
+      SPARK_MODE: submit
+      SPARK_MASTER_URL: spark://spark-master:7077
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
       ONEHOUSE_KAFKA_TOPIC: ${ONEHOUSE_KAFKA_TOPIC:-telecom.raw_logs}
-      ICEBERG_CATALOG: iceberg
+      ICEBERG_CATALOG: ${ICEBERG_CATALOG:-viettel}
       ICEBERG_WAREHOUSE: s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
       ICEBERG_REST_URI: http://iceberg-rest:8181
       S3_ENDPOINT: http://minio:9000
-      SPARK_CHECKPOINT_LOCATION: /tmp/onehouse/checkpoints/bronze_telecom_events
-    command:
-      - >
-        spark-submit
-        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1
-        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        --conf spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        --conf spark.sql.catalog.iceberg.catalog-impl=org.apache.iceberg.rest.RESTCatalog
-        --conf spark.sql.catalog.iceberg.uri=http://iceberg-rest:8181
-        --conf spark.sql.catalog.iceberg.warehouse=s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
-        --conf spark.sql.catalog.iceberg.io-impl=org.apache.iceberg.aws.s3.S3FileIO
-        --conf spark.sql.catalog.iceberg.s3.endpoint=http://minio:9000
-        --conf spark.sql.catalog.iceberg.s3.path-style-access=true
-        --conf spark.sql.defaultCatalog=iceberg
-        --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
-        --conf spark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER:-admin}
-        --conf spark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD:-password}
-        --conf spark.hadoop.fs.s3a.path.style.access=true
-        --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
-        --conf spark.sql.shuffle.partitions=4
-        /opt/onehouse/spark/jobs/stream_to_iceberg.py
+      SPARK_CHECKPOINT_LOCATION: s3a://${MINIO_WAREHOUSE_BUCKET:-warehouse}/checkpoints/bronze_telecom_events
     volumes:
       - ./spark/jobs:/opt/onehouse/spark/jobs:ro
-      - spark_checkpoints:/tmp/onehouse/checkpoints
     ports:
       - "4040:4040"
     networks:
       - onehouse
+    restart: on-failure
+
+  # ── CDC Infrastructure ──
+  postgres-billing:
+    image: postgres:16-alpine
+    container_name: onehouse-postgres-billing
+    command: >
+      postgres
+        -c wal_level=logical
+        -c max_replication_slots=4
+        -c max_wal_senders=4
+    environment:
+      POSTGRES_USER: ${POSTGRES_BILLING_USER:-viettel}
+      POSTGRES_PASSWORD: ${POSTGRES_BILLING_PASSWORD:-viettel}
+      POSTGRES_DB: ${POSTGRES_BILLING_DB:-viettel_billing}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgresql/init_billing.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./postgresql/create_publication.sql:/docker-entrypoint-initdb.d/02_publication.sql
+      - postgres_billing_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_BILLING_USER:-viettel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - onehouse
+
+  billing-generator:
+    build:
+      context: ./simulator
+    container_name: onehouse-billing-generator
+    depends_on:
+      postgres-billing:
+        condition: service_healthy
+    environment:
+      GENERATOR_SCRIPT: billing_generator.py
+      POSTGRES_HOST: postgres-billing
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_BILLING_USER:-viettel}
+      POSTGRES_PASSWORD: ${POSTGRES_BILLING_PASSWORD:-viettel}
+      POSTGRES_DB: ${POSTGRES_BILLING_DB:-viettel_billing}
+      BATCH_SIZE: "10"
+      INTERVAL_SEC: "5"
+    networks:
+      - onehouse
     restart: unless-stopped
+
+  debezium:
+    image: quay.io/debezium/connect:2.7
+    container_name: onehouse-debezium
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: redpanda:9092
+      GROUP_ID: debezium-group
+      CONFIG_STORAGE_TOPIC: debezium_configs
+      OFFSET_STORAGE_TOPIC: debezium_offsets
+      STATUS_STORAGE_TOPIC: debezium_status
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      postgres-billing:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/connectors || exit 1"]
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - onehouse
+
+  debezium-init:
+    image: curlimages/curl:latest
+    container_name: onehouse-debezium-init
+    depends_on:
+      debezium:
+        condition: service_healthy
+    volumes:
+      - ./debezium/register_billing.json:/register.json:ro
+    entrypoint: >
+      /bin/sh -c "
+      curl -sf -X POST http://debezium:8083/connectors -H 'Content-Type: application/json' -d @/register.json &&
+      echo 'Billing CDC connector registered.'
+      "
+    networks:
+      - onehouse
+
+  spark-cdc:
+    build:
+      context: ./docker/spark
+    container_name: onehouse-spark-cdc
+    depends_on:
+      spark-master:
+        condition: service_started
+      spark-worker:
+        condition: service_started
+      debezium-init:
+        condition: service_completed_successfully
+    environment:
+      SPARK_MODE: submit
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_JOB_SCRIPT: /opt/onehouse/spark/jobs/cdc_billing_stream.py
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      ICEBERG_CATALOG: ${ICEBERG_CATALOG:-viettel}
+      ICEBERG_WAREHOUSE: s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
+      ICEBERG_REST_URI: http://iceberg-rest:8181
+      S3_ENDPOINT: http://minio:9000
+      SPARK_CHECKPOINT_LOCATION: s3a://${MINIO_WAREHOUSE_BUCKET:-warehouse}/checkpoints
+    volumes:
+      - ./spark/jobs:/opt/onehouse/spark/jobs:ro
+    networks:
+      - onehouse
+    restart: on-failure
 
   dbt:
     build:
@@ -347,7 +488,8 @@ networks:
 
 volumes:
   minio_data:
-  spark_checkpoints:
+  postgres_billing_data:
   airflow_postgres_data:
   airflow_logs:
   superset_home:
+
