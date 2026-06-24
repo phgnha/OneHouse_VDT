@@ -7,7 +7,7 @@ onehouse:
       user: "{{ env_var('TRINO_USER', 'admin') }}"
       host: "{{ env_var('TRINO_HOST', 'trino') }}"
       port: "{{ env_var('TRINO_PORT', '8080') | int }}"
-      database: iceberg
+      database: viettel
       schema: analytics
       http_scheme: http
       threads: 4
