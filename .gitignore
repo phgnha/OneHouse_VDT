@@ -33,3 +33,4 @@ report/
 # Temporary files
 test.py
 walkthrough.md
+plot_ratios.py

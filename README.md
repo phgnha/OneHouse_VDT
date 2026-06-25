@@ -10,7 +10,7 @@ Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lư
 │                                                                          │
 │  ┌───────────────┐     ┌──────────────┐     ┌────────────────────────┐   │
 │  │  Telecom      │     │              │     │  Spark Standalone      │   │
-│  │  Simulator    │────▶│   Redpanda   │────▶│  ┌──────────────────┐  │   │
+│  │  Simulator    │────▶│             │────▶│  ┌──────────────────┐  │   │
 │  │  (Kafka JSON) │     │   (Kafka)    │     │  │ stream_to_       │  │   │
 │  └───────────────┘     │              │     │  │ iceberg.py       │  │   │
 │                        │              │     │  │ (Append)         │  │   │
