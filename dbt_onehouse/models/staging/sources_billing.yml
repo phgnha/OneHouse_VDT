@@ -1,0 +1,41 @@
+version: 2
+
+sources:
+  - name: bronze_billing
+    database: viettel
+    schema: bronze
+    description: CDC-sourced billing data written by Spark MERGE INTO from Debezium/Redpanda.
+    tables:
+      - name: billing_plans
+        description: Current state of Viettel billing plans (CDC upsert from PostgreSQL).
+        columns:
+          - name: plan_id
+            description: Unique plan identifier.
+            tests:
+              - not_null
+              - unique
+          - name: plan_name
+            tests:
+              - not_null
+          - name: monthly_fee
+            tests:
+              - not_null
+
+      - name: subscribers
+        description: Current state of subscriber records (CDC upsert from PostgreSQL).
+        columns:
+          - name: subscriber_id
+            description: MSISDN phone number.
+            tests:
+              - not_null
+              - unique
+          - name: plan_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('bronze_billing', 'billing_plans')
+                  field: plan_id
+          - name: status
+            tests:
+              - accepted_values:
+                  values: ["active", "suspended", "terminated"]

@@ -109,3 +109,64 @@ models:
         tests:
           - accepted_values:
               values: ["NORMAL", "WARNING", "CRITICAL"]
+
+  - name: stg_billing_plans
+    description: Normalized billing plan data from CDC pipeline.
+    columns:
+      - name: plan_id
+        tests:
+          - not_null
+          - unique
+      - name: monthly_fee
+        tests:
+          - not_null
+          - accepted_range:
+              min_value: 0
+              max_value: 10000000
+
+  - name: stg_subscribers
+    description: Normalized subscriber data from CDC pipeline.
+    columns:
+      - name: subscriber_id
+        tests:
+          - not_null
+          - unique
+      - name: plan_id
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - accepted_values:
+              values: ["active", "suspended", "terminated"]
+
+  - name: gold_customer_360
+    description: Cross-domain Customer 360 joining subscriber billing with network quality.
+    tags:
+      - billing
+    tests:
+      - not_empty
+    columns:
+      - name: subscriber_id
+        tests:
+          - not_null
+          - unique
+      - name: churn_risk_tier
+        tests:
+          - accepted_values:
+              values: ["HIGH_RISK", "MEDIUM_RISK", "LOW_RISK"]
+
+  - name: gold_plan_revenue_impact
+    description: Revenue impact analysis by billing plan.
+    tags:
+      - billing
+    tests:
+      - not_empty
+    columns:
+      - name: plan_id
+        tests:
+          - not_null
+          - unique
+      - name: plan_health_status
+        tests:
+          - accepted_values:
+              values: ["CRITICAL", "WARNING", "HEALTHY"]

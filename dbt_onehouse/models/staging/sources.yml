@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: bronze
-    database: iceberg
+    database: viettel
     schema: bronze
     description: Append-only telecom logs written by Spark Structured Streaming.
     tables:
