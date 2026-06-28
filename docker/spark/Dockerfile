@@ -20,9 +20,10 @@ ENV PATH="${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${PATH}"
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 
-# 3. Copy locally downloaded Spark
-COPY spark.tgz /tmp/spark.tgz
-RUN tar -xf /tmp/spark.tgz -C /opt && \
+# 3. Download Spark
+RUN curl -L --retry 5 --retry-delay 5 -o /tmp/spark.tgz \
+    https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz && \
+    tar -xf /tmp/spark.tgz -C /opt && \
     mv /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} ${SPARK_HOME} && \
     rm /tmp/spark.tgz
 

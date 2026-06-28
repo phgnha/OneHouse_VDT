@@ -33,4 +33,7 @@ report/
 # Temporary files
 test.py
 walkthrough.md
+
+# Large files
+spark.tgz
 plot_ratios.py
