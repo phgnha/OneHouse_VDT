@@ -1,5 +1,5 @@
+-- Cấu hình tạo model dưới dạng view ảo (view) đặt tại schema 'staging'
 {{
-  -- Cấu hình tạo model dưới dạng view ảo (view) đặt tại schema 'staging'
   config(
     materialized='view',
     schema='staging'

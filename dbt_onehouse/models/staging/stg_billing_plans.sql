@@ -1,7 +1,7 @@
+-- Cấu hình dbt cho model này: 
+-- Vật lý hóa (materialized) dưới dạng 'view' (không lưu data ra bảng vật lý mới, truy vấn trực tiếp)
+-- Lưu trong schema 'staging'
 {{
-  -- Cấu hình dbt cho model này: 
-  -- Vật lý hóa (materialized) dưới dạng 'view' (không lưu data ra bảng vật lý mới, truy vấn trực tiếp)
-  -- Lưu trong schema 'staging'
   config(
     materialized='view',
     schema='staging'

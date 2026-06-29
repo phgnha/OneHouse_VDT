@@ -1,6 +1,6 @@
+-- Cấu hình tạo bảng vật lý hoàn chỉnh ở lớp Gold
+-- Bảng này gom chung dữ liệu từ nhiều domain nên thích hợp làm nguồn cho Dashboard
 {{
-  -- Cấu hình tạo bảng vật lý hoàn chỉnh ở lớp Gold
-  -- Bảng này gom chung dữ liệu từ nhiều domain nên thích hợp làm nguồn cho Dashboard
   config(
     materialized='table',
     schema='gold',

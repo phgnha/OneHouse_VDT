@@ -1,12 +1,10 @@
+-- Cấu hình tạo model dạng bảng gia tăng (incremental)
+-- dbt sẽ chỉ chạy MERGE INTO phần dữ liệu mới thay vì ghi lại toàn bộ bảng
 {{
-  -- Cấu hình tạo model dạng bảng gia tăng (incremental)
-  -- dbt sẽ chỉ chạy MERGE INTO phần dữ liệu mới thay vì ghi lại toàn bộ bảng
   config(
     materialized='incremental',
-    -- Khóa chính dùng để update khi có dữ liệu trùng lặp (chống duplicate)
     unique_key=['window_start', 'cell_id', 'network_type'],
     incremental_strategy='merge',
-    -- Tự động đồng bộ nếu schema có sự thay đổi (thêm/bớt cột)
     on_schema_change='sync_all_columns'
   )
 }}
