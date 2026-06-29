@@ -1,4 +1,4 @@
-# OneHouse Streaming Lakehouse — Viettel Digital Twin (VDT)
+# OneHouse Streaming Lakehouse — Viettel Digital Talent (VDT)
 
 Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lưu lượng mạng viễn thông Viettel theo thời gian thực (Near Real-time), kết hợp luồng **Telemetry** (dữ liệu hiệu năng mạng) và **CDC** (dữ liệu thay đổi từ hệ thống thanh toán) trên cùng một Data Platform.
 
@@ -280,10 +280,10 @@ docker volume rm onehouse_minio_data onehouse_postgres_billing_data onehouse_air
 | Redpanda | v24.3.7 | Kafka-compatible message broker |
 | Apache Spark | 3.5.3 | Distributed stream processing (Master-Worker) |
 | Apache Iceberg | 1.7.1 | Open table format (Format V2, MERGE INTO) |
-| MinIO | RELEASE.2024-11-07 | S3-compatible object storage |
-| Trino | 457 | Distributed SQL query engine |
-| dbt-trino | 1.8.x | ELT transformation framework |
-| Apache Airflow | 2.10.4 | Workflow orchestration |
+| MinIO | RELEASE.2025-04-22 | S3-compatible object storage |
+| Trino | 481 | Distributed SQL query engine |
+| dbt-trino | 1.10.2 | ELT transformation framework |
+| Apache Airflow | 2.10.5 | Workflow orchestration |
 | Apache Superset | 4.1.1 | BI dashboard |
 | PostgreSQL | 16-alpine | OLTP billing database (CDC source) |
 | Debezium | 2.7 | Change Data Capture (Kafka Connect) |
