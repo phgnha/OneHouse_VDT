@@ -104,8 +104,9 @@ def main() -> None:
     """Hàm chạy luồng xử lý chính: đọc stream từ Kafka, chuẩn hóa và lưu xuống Iceberg."""
     # Khởi tạo Spark Session
     spark = (
-        SparkSession.builder.appName("onehouse-bronze-stream")
+        SparkSession.builder.appName("onehouse-telecom-stream")
         .config("spark.sql.streaming.schemaInference", "false")
+        .config("spark.cores.max", "1")
         .getOrCreate()
     )
     # Tắt hiển thị các log INFO không cần thiết
@@ -119,7 +120,7 @@ def main() -> None:
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", BOOTSTRAP_SERVERS)
         .option("subscribe", TOPIC)
-        .option("startingOffsets", "latest")  # Chỉ lấy các event mới nhất từ thời điểm chạy
+        .option("startingOffsets", "earliest")  # Chỉ lấy các event mới nhất từ thời điểm chạy
         .option("failOnDataLoss", "false")    # Chống dừng ứng dụng nếu lỡ mất vài block Kafka
         .load()
     )

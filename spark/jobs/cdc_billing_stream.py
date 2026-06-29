@@ -11,7 +11,7 @@ unlike the telemetry stream which uses simple Append.
 import os
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, current_timestamp, from_json, to_timestamp
+from pyspark.sql.functions import col, current_timestamp, from_json, to_timestamp, get_json_object
 from pyspark.sql.types import (
     BooleanType,
     DoubleType,
@@ -215,12 +215,17 @@ def build_cdc_stream(
     # 2. Xử lý logic giải mã dữ liệu chuỗi json ra thành các cột struct và format kiểu thời gian
     parsed = (
         raw.select(
-            from_json(col("value").cast("string"), schema).alias("data"),
+            from_json(get_json_object(col("value").cast("string"), "$.payload"), schema).alias("data"),
             col("timestamp").alias("kafka_timestamp"),
         )
         .select("data.*", "kafka_timestamp")
-        .withColumn("created_at", to_timestamp("created_at"))
-        .withColumn("updated_at", to_timestamp("updated_at"))
+    )
+
+    if "created_at" in [f.name for f in schema.fields]:
+        parsed = parsed.withColumn("created_at", to_timestamp("created_at"))
+
+    parsed = (
+        parsed.withColumn("updated_at", to_timestamp("updated_at"))
         .withColumn("is_deleted", col("__deleted").eqNullSafe("true")) # Chuyển đổi cờ xóa
         .withColumn("ingested_at", current_timestamp()) # Thời điểm dữ liệu cập bến Iceberg
         .drop("__deleted")
@@ -251,6 +256,7 @@ def main() -> None:
     spark = (
         SparkSession.builder.appName("onehouse-cdc-billing-stream")
         .config("spark.sql.streaming.schemaInference", "false")
+        .config("spark.cores.max", "1")
         .getOrCreate()
     )
     # Ẩn bớt các log thừa
