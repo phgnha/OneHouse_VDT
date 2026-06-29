@@ -6,7 +6,7 @@ def main() -> None:
     from superset.app import create_app
     from superset.extensions import db
 
-    trino_uri = os.getenv("SUPERSET_TRINO_URI", "trino://admin@trino:8080/iceberg/gold")
+    trino_uri = os.getenv("SUPERSET_TRINO_URI", "trino://admin@trino:8080/viettel/gold")
 
     app = create_app()
     with app.app_context():
@@ -18,7 +18,7 @@ def main() -> None:
         database = (
             db.session.query(Database)
             .filter(Database.database_name == "Trino Iceberg")
-            .one_or_none()
+            .first()
         )
         if database is None:
             database = Database(database_name="Trino Iceberg", sqlalchemy_uri=trino_uri)
@@ -74,8 +74,8 @@ def main() -> None:
                 "datasource": f"{heatmap_dataset.id}__table",
                 "dimension": "severity",
                 "js_columns": ["cell_id", "province", "district", "severity"],
-                "latlong": ["latitude", "longitude"],
-                "mapbox_style": "mapbox://styles/mapbox/light-v9",
+                "spatial": {"type": "latlong", "lonCol": "longitude", "latCol": "latitude"},
+                "mapbox_style": "mapbox://styles/mapbox/light-v11",
                 "metric": {
                     "aggregate": "AVG",
                     "column": {"column_name": "cell_load_score"},
@@ -118,24 +118,64 @@ def main() -> None:
             },
         )
 
+        churn_dataset = ensure_dataset(
+            database=database,
+            table_name="gold_customer_360",
+            schema="gold",
+            columns=["subscriber_id", "churn_risk_tier"],
+        )
+        revenue_dataset = ensure_dataset(
+            database=database,
+            table_name="gold_plan_revenue_impact",
+            schema="gold",
+            columns=["plan_name", "total_monthly_revenue"],
+        )
+
+        churn_chart = ensure_chart(
+            name="Customer Churn Risk",
+            dataset=churn_dataset,
+            viz_type="pie",
+            params={
+                "datasource": f"{churn_dataset.id}__table",
+                "groupby": ["churn_risk_tier"],
+                "metric": {"aggregate": "COUNT", "column": {"column_name": "subscriber_id"}, "expressionType": "SIMPLE", "label": "Total Customers"},
+                "adhoc_filters": [],
+                "row_limit": 100,
+            },
+        )
+
+        revenue_chart = ensure_chart(
+            name="Revenue by Plan",
+            dataset=revenue_dataset,
+            viz_type="pie",
+            params={
+                "datasource": f"{revenue_dataset.id}__table",
+                "groupby": ["plan_name"],
+                "metric": {"aggregate": "SUM", "column": {"column_name": "total_monthly_revenue"}, "expressionType": "SIMPLE", "label": "Total Revenue"},
+                "adhoc_filters": [],
+                "innerRadius": 50,
+                "row_limit": 100,
+            },
+        )
+
         dashboard = (
             db.session.query(Dashboard)
             .filter(Dashboard.dashboard_title == "OneHouse Network Experience")
-            .one_or_none()
+            .first()
         )
         if dashboard is None:
             dashboard = Dashboard(dashboard_title="OneHouse Network Experience")
             db.session.add(dashboard)
             db.session.flush()
 
-        dashboard.slices = [heatmap_chart, trend_chart]
+        dashboard.slices = [heatmap_chart, trend_chart, churn_chart, revenue_chart]
         dashboard.position_json = json.dumps(
             {
                 "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
                 "GRID_ID": {
                     "type": "GRID",
                     "id": "GRID_ID",
-                    "children": ["ROW_1", "ROW_2"],
+                    "children": ["ROW_1", "ROW_2", "ROW_3"],
                     "parents": ["ROOT_ID"],
                 },
                 "ROW_1": {
@@ -143,12 +183,21 @@ def main() -> None:
                     "id": "ROW_1",
                     "children": ["CHART_HEATMAP"],
                     "parents": ["ROOT_ID", "GRID_ID"],
+                    "meta": {"background": "BACKGROUND_TRANSPARENT"},
                 },
                 "ROW_2": {
                     "type": "ROW",
                     "id": "ROW_2",
                     "children": ["CHART_TREND"],
                     "parents": ["ROOT_ID", "GRID_ID"],
+                    "meta": {"background": "BACKGROUND_TRANSPARENT"},
+                },
+                "ROW_3": {
+                    "type": "ROW",
+                    "id": "ROW_3",
+                    "children": ["CHART_CHURN", "CHART_REVENUE"],
+                    "parents": ["ROOT_ID", "GRID_ID"],
+                    "meta": {"background": "BACKGROUND_TRANSPARENT"},
                 },
                 "CHART_HEATMAP": {
                     "type": "CHART",
@@ -163,6 +212,20 @@ def main() -> None:
                     "children": [],
                     "parents": ["ROOT_ID", "GRID_ID", "ROW_2"],
                     "meta": {"chartId": trend_chart.id, "height": 44, "width": 12},
+                },
+                "CHART_CHURN": {
+                    "type": "CHART",
+                    "id": "CHART_CHURN",
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", "ROW_3"],
+                    "meta": {"chartId": churn_chart.id, "height": 50, "width": 6},
+                },
+                "CHART_REVENUE": {
+                    "type": "CHART",
+                    "id": "CHART_REVENUE",
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", "ROW_3"],
+                    "meta": {"chartId": revenue_chart.id, "height": 50, "width": 6},
                 },
             }
         )
@@ -181,7 +244,7 @@ def ensure_dataset(database, table_name, schema, columns):
             SqlaTable.table_name == table_name,
             SqlaTable.schema == schema,
         )
-        .one_or_none()
+        .first()
     )
     if dataset is None:
         dataset = SqlaTable(table_name=table_name, schema=schema, database=database)
@@ -200,7 +263,7 @@ def ensure_chart(name, dataset, viz_type, params):
     from superset.extensions import db
     from superset.models.slice import Slice
 
-    chart = db.session.query(Slice).filter(Slice.slice_name == name).one_or_none()
+    chart = db.session.query(Slice).filter(Slice.slice_name == name).first()
     if chart is None:
         chart = Slice(slice_name=name)
         db.session.add(chart)

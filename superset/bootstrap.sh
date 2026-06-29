@@ -12,9 +12,8 @@ superset fab create-admin \
   --password "${SUPERSET_ADMIN_PASSWORD:-admin}" || true
 superset init
 
-superset set-database-uri \
-  -d "Trino Iceberg" \
-  -u "${SUPERSET_TRINO_URI:-trino://admin@trino:8080/iceberg/gold}" || true
+superset set_database_uri -d trino -n Trino \
+  -u "${SUPERSET_TRINO_URI:-trino://admin@trino:8080/viettel/gold}" || true
 
 python /app/onehouse/superset/create_dashboard.py || true
 
