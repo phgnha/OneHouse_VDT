@@ -2,7 +2,7 @@
 param(
     [Parameter(Position = 0)]
     # Giới hạn các hành động (Action) hợp lệ mà người dùng có thể nhập vào
-    [ValidateSet("start", "cdc", "dbt", "orchestration", "visualization", "smoke", "logs", "stop")]
+    [ValidateSet("start", "cdc", "dbt", "orchestration", "visualization", "smoke", "cdc-test", "logs", "stop")]
     [string]$Action = "start" # Mặc định nếu không truyền tham số sẽ là 'start'
 )
 
@@ -23,7 +23,7 @@ switch ($Action) {
         # Khởi động hạ tầng cốt lõi (Data Lake, Kafka, Spark Streaming)
         Ensure-EnvFile
         # Dùng docker compose để build và chạy ngầm (-d) các dịch vụ cơ sở
-        docker compose up -d --build redpanda redpanda-console minio minio-init iceberg-rest trino simulator spark-master spark-worker spark-streaming
+        docker compose up -d --build kafka kafka-ui minio minio-init iceberg-rest trino simulator spark-master spark-worker spark-streaming
     }
     "cdc" {
         # Khởi động các luồng dữ liệu thay đổi (Change Data Capture)
@@ -52,6 +52,21 @@ switch ($Action) {
         # Chạy test kết nối nhanh đến Trino (Smoke test)
         # Đọc trực tiếp câu lệnh từ file sql và truyền vào command line của container trino
         Get-Content -Raw "scripts/trino_smoke.sql" | docker exec -i onehouse-trino trino --catalog viettel --schema gold
+    }
+    "cdc-test" {
+        # Test CDC cu the bang cach update 1 subscriber trong PostgreSQL roi kiem tra
+        Write-Host "1. Kiem tra gold_customer_360 hien tai cho SUB_00001:"
+        docker exec -i onehouse-trino trino --catalog viettel --schema gold --execute "SELECT subscriber_id, full_name, churn_risk_tier FROM gold_customer_360 WHERE subscriber_id = 'SUB_00001'"
+
+        Write-Host "`n2. Update PostgreSQL (Cap nhat plan cho SUB_00001 sang PLAN_PREMIUM):"
+        docker exec -i onehouse-postgres-billing psql -U viettel -d viettel_billing -c "UPDATE subscribers SET plan_id = 'PLAN_PREMIUM' WHERE subscriber_id = 'SUB_00001';"
+
+        Write-Host "`n3. Cho 15s de Spark CDC process ban ghi va chay lai dbt de cap nhat gold_customer_360:"
+        Start-Sleep -Seconds 15
+        docker compose --profile tools run --rm dbt run --select stg_subscribers gold_customer_360
+
+        Write-Host "`n4. Kiem tra lai gold_customer_360 (churn_risk_tier hoac thuoc tinh khac se thay doi):"
+        docker exec -i onehouse-trino trino --catalog viettel --schema gold --execute "SELECT subscriber_id, full_name, plan_id, churn_risk_tier FROM gold_customer_360 WHERE subscriber_id = 'SUB_00001'"
     }
     "logs" {
         # Theo dõi (tail/follow -f) log trực tiếp từ các container sinh log chính

@@ -20,3 +20,9 @@ select
 from viettel.gold.gold_cell_heatmap
 order by cell_load_score desc -- Sắp xếp giảm dần theo mức độ tải
 limit 20;                     -- Chỉ lấy 20 kết quả đầu tiên
+
+-- Kiem tra so luong ban ghi de dam bao du lieu da chay
+select count(*) as bronze_telecom_events_count from viettel.bronze.telecom_events;
+select count(*) as bronze_subscribers_count from viettel.bronze.subscribers;
+select count(*) as gold_customer_360_count from viettel.gold.gold_customer_360;
+select count(*) as gold_plan_revenue_impact_count from viettel.gold.gold_plan_revenue_impact;
