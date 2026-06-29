@@ -1,43 +1,39 @@
 services:
-  redpanda:
-    image: redpandadata/redpanda:v24.3.7
-    container_name: onehouse-redpanda
-    command:
-      - redpanda
-      - start
-      - --smp
-      - "1"
-      - --memory
-      - 1G
-      - --reserve-memory
-      - 0M
-      - --overprovisioned
-      - --node-id
-      - "0"
-      - --check=false
-      - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
-      - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: onehouse-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     ports:
-      - "19092:19092"
-      - "19644:9644"
+      - "9092:9092"
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     networks:
       - onehouse
 
-  redpanda-console:
-    image: redpandadata/console:v2.8.4
-    container_name: onehouse-redpanda-console
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: onehouse-kafka-ui
     depends_on:
-      redpanda:
+      kafka:
         condition: service_healthy
     environment:
-      KAFKA_BROKERS: redpanda:9092
+      KAFKA_CLUSTERS_0_NAME: onehouse
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     ports:
       - "8084:8080"
     networks:
@@ -126,10 +122,10 @@ services:
       context: ./simulator
     container_name: onehouse-simulator
     depends_on:
-      redpanda:
+      kafka:
         condition: service_healthy
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       ONEHOUSE_KAFKA_TOPIC: ${ONEHOUSE_KAFKA_TOPIC:-telecom.raw_logs}
       SIMULATOR_EVENTS_PER_SECOND: ${SIMULATOR_EVENTS_PER_SECOND:-20}
       SIMULATOR_DUPLICATE_RATIO: ${SIMULATOR_DUPLICATE_RATIO:-0.01}
@@ -146,6 +142,7 @@ services:
       SPARK_MODE: master
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       - "7077:7077"
       - "8085:8080"
@@ -166,6 +163,7 @@ services:
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2g}
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       - "8086:8081"
     networks:
@@ -180,7 +178,7 @@ services:
         condition: service_started
       spark-worker:
         condition: service_started
-      redpanda:
+      kafka:
         condition: service_healthy
       iceberg-rest:
         condition: service_started
@@ -192,7 +190,7 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       ONEHOUSE_KAFKA_TOPIC: ${ONEHOUSE_KAFKA_TOPIC:-telecom.raw_logs}
       ICEBERG_CATALOG: ${ICEBERG_CATALOG:-viettel}
       ICEBERG_WAREHOUSE: s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
@@ -260,7 +258,7 @@ services:
     ports:
       - "8083:8083"
     environment:
-      BOOTSTRAP_SERVERS: redpanda:9092
+      BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: debezium-group
       CONFIG_STORAGE_TOPIC: debezium_configs
       OFFSET_STORAGE_TOPIC: debezium_offsets
@@ -270,7 +268,7 @@ services:
       KEY_CONVERTER_SCHEMAS_ENABLE: "false"
       VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
     depends_on:
-      redpanda:
+      kafka:
         condition: service_healthy
       postgres-billing:
         condition: service_healthy
@@ -317,7 +315,7 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-password}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       ICEBERG_CATALOG: ${ICEBERG_CATALOG:-viettel}
       ICEBERG_WAREHOUSE: s3://${MINIO_WAREHOUSE_BUCKET:-warehouse}/
       ICEBERG_REST_URI: http://iceberg-rest:8181
@@ -470,7 +468,7 @@ services:
       SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
       SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
       SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@example.com}
-      SUPERSET_TRINO_URI: ${SUPERSET_TRINO_URI:-trino://admin@trino:8080/iceberg/gold}
+      SUPERSET_TRINO_URI: ${SUPERSET_TRINO_URI:-trino://admin@trino:8080/viettel/gold}
     ports:
       - "8088:8088"
     volumes:
