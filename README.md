@@ -48,7 +48,7 @@ Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lư
 
 | Tầng | Service | Container | Vai trò |
 |------|---------|-----------|---------|
-| **Ingestion** | Redpanda | `onehouse-redpanda` | Message broker tương thích Kafka, tiếp nhận cả telecom events và CDC events |
+| **Ingestion** | Kafka | `onehouse-kafka` | Message broker tiếp nhận cả telecom events và CDC events |
 | **Ingestion** | Telecom Simulator | `onehouse-simulator` | Sinh liên tục CDR và log Internet di động 4G/5G (~20 events/giây) |
 | **CDC** | PostgreSQL Billing | `onehouse-postgres-billing` | CSDL OLTP chứa bảng `billing_plans` (gói cước) và `subscribers` (thuê bao) |
 | **CDC** | Billing Generator | `onehouse-billing-generator` | Sinh liên tục các thay đổi OLTP (INSERT/UPDATE) trên bảng billing |
@@ -72,7 +72,7 @@ Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lư
 | Trino | http://localhost:8080 |
 | Airflow | http://localhost:8082 |
 | Debezium Connect | http://localhost:8083 |
-| Redpanda Console | http://localhost:8084 |
+| Kafka UI | http://localhost:8084 |
 | Spark Master UI | http://localhost:8085 |
 | Spark Worker UI | http://localhost:8086 |
 | Superset | http://localhost:8088 |
@@ -88,7 +88,7 @@ Tài khoản mặc định `admin/admin` cho Airflow, Superset, và MinIO.
 ### Luồng 1: Telemetry (Append-only)
 
 ```
-Telecom Simulator → Redpanda (topic: telecom.raw_logs) → Spark stream_to_iceberg.py
+Telecom Simulator → Kafka (topic: telecom.raw_logs) → Spark stream_to_iceberg.py
     → viettel.bronze.telecom_events (Append, Iceberg Format V2)
     → dbt: stg_telecom_events → silver_cell_events → gold_network_kpis → gold_cell_heatmap
 ```
@@ -96,7 +96,7 @@ Telecom Simulator → Redpanda (topic: telecom.raw_logs) → Spark stream_to_ice
 ### Luồng 2: CDC Billing (Upsert / MERGE INTO)
 
 ```
-PostgreSQL (WAL) → Debezium → Redpanda (topics: billing.public.*)
+PostgreSQL (WAL) → Debezium → Kafka (topics: billing.public.*)
     → Spark cdc_billing_stream.py (foreachBatch + MERGE INTO)
     → viettel.bronze.billing_plans, viettel.bronze.subscribers (Upsert, Iceberg Format V2)
     → dbt: stg_billing_plans, stg_subscribers → gold_customer_360 → gold_plan_revenue_impact
@@ -200,7 +200,7 @@ Copy-Item .env.example .env
 ### Core Streaming Lakehouse
 
 ```powershell
-docker compose up -d --build redpanda redpanda-console minio minio-init iceberg-rest trino simulator spark-master spark-worker spark-streaming
+docker compose up -d --build kafka kafka-ui minio minio-init iceberg-rest trino simulator spark-master spark-worker spark-streaming
 ```
 
 ### CDC Pipeline
@@ -277,7 +277,7 @@ docker volume rm onehouse_minio_data onehouse_postgres_billing_data onehouse_air
 
 | Công nghệ | Phiên bản | Vai trò |
 |-----------|-----------|---------|
-| Redpanda | v24.3.7 | Kafka-compatible message broker |
+| Apache Kafka | 3.7.0 | Distributed event streaming platform |
 | Apache Spark | 3.5.3 | Distributed stream processing (Master-Worker) |
 | Apache Iceberg | 1.7.1 | Open table format (Format V2, MERGE INTO) |
 | MinIO | RELEASE.2025-04-22 | S3-compatible object storage |

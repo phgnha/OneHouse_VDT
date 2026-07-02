@@ -19,7 +19,7 @@ def env(name: str, default: str) -> str:
 # Định nghĩa các cấu hình mặc định (có thể ghi đè qua environment variables)
 CATALOG = env("ICEBERG_CATALOG", "viettel")                                      # Tên Iceberg Catalog
 TOPIC = env("ONEHOUSE_KAFKA_TOPIC", "telecom.raw_logs")                          # Tên Kafka Topic chứa log giả lập
-BOOTSTRAP_SERVERS = env("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")              # Địa chỉ Kafka/Redpanda broker
+BOOTSTRAP_SERVERS = env("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")              # Địa chỉ Kafka broker
 CHECKPOINT_LOCATION = env(
     "SPARK_CHECKPOINT_LOCATION",
     "s3a://warehouse/checkpoints/bronze_telecom_events",                         # Nơi lưu trữ Spark Streaming checkpoint
@@ -115,7 +115,7 @@ def main() -> None:
     # Đảm bảo bảng đích đã sẵn sàng
     create_bronze_table(spark)
 
-    # 1. Mở kết nối đọc Data Stream từ Redpanda broker
+    # 1. Mở kết nối đọc Data Stream từ Kafka broker
     kafka_rows = (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", BOOTSTRAP_SERVERS)

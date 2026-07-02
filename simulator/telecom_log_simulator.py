@@ -202,7 +202,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     # Đọc tham số cấu hình từ environment variables
-    bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")
+    bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
     topic = os.getenv("ONEHOUSE_KAFKA_TOPIC", "telecom.raw_logs")
     events_per_second = int(os.getenv("SIMULATOR_EVENTS_PER_SECOND", "20"))
     duplicate_ratio = float(os.getenv("SIMULATOR_DUPLICATE_RATIO", "0.01"))
@@ -233,7 +233,7 @@ def main() -> None:
         for _ in range(events_per_second):
             # Quyết định nên sinh sự kiện mới (build_event) hay giả lập duplicate lại sự kiện vừa đẩy lên trước đó
             event = last_event if last_event and random.random() < duplicate_ratio else build_event(bad_record_ratio)
-            # Gửi dữ liệu về topic Redpanda (Kafka), dùng cell_id làm khóa chính (partition key)
+            # Gửi dữ liệu về topic Kafka, dùng cell_id làm khóa chính (partition key)
             producer.send(topic, key=str(event.get("cell_id") or "unknown"), value=event)
             last_event = event
 

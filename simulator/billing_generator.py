@@ -2,7 +2,7 @@
 
 Connects to PostgreSQL billing database and continuously performs
 INSERT/UPDATE operations on subscribers and billing_plans tables.
-Debezium captures these changes via WAL and publishes to Redpanda.
+Debezium captures these changes via WAL and publishes to Kafka.
 
 Usage:
   Set GENERATOR_MODE=billing in Docker Compose environment.

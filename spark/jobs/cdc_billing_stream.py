@@ -1,6 +1,6 @@
 """CDC Billing Stream — Spark Structured Streaming with MERGE INTO (Upsert).
 
-Reads CDC events from Debezium via Redpanda topics:
+Reads CDC events from Debezium via Kafka topics:
   - billing.public.billing_plans
   - billing.public.subscribers
 
@@ -29,13 +29,13 @@ def env(name: str, default: str) -> str:
 
 # Cấu hình danh mục (Catalog) của Iceberg, thông tin Kafka Broker và thư mục lưu Checkpoint của Spark
 CATALOG = env("ICEBERG_CATALOG", "viettel")
-BOOTSTRAP_SERVERS = env("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")
+BOOTSTRAP_SERVERS = env("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 CHECKPOINT_BASE = env(
     "SPARK_CHECKPOINT_LOCATION",
     "s3a://warehouse/checkpoints",
 )
 
-# Tên các topic Redpanda chứa dữ liệu CDC (đã được làm phẳng nhờ Debezium ExtractNewRecordState)
+# Tên các topic Kafka chứa dữ liệu CDC (đã được làm phẳng nhờ Debezium ExtractNewRecordState)
 PLANS_TOPIC = "billing.public.billing_plans"
 SUBSCRIBERS_TOPIC = "billing.public.subscribers"
 
@@ -202,7 +202,7 @@ def build_cdc_stream(
         merge_fn: Hàm thực hiện merge_into (upsert/delete).
         checkpoint_suffix: Tên folder lưu trữ thông tin checkpoint cho tính năng fault-tolerance.
     """
-    # 1. Đọc stream raw từ broker Redpanda/Kafka
+    # 1. Đọc stream raw từ broker Kafka
     raw = (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", BOOTSTRAP_SERVERS)
@@ -265,7 +265,7 @@ def main() -> None:
     # Bước 1: Tạo trước các bảng Bronze ở Iceberg catalog (nếu chưa có)
     create_bronze_tables(spark)
 
-    print(f"Starting CDC streams from Redpanda ({BOOTSTRAP_SERVERS})", flush=True)
+    print(f"Starting CDC streams from Kafka ({BOOTSTRAP_SERVERS})", flush=True)
     print(f"  → {PLANS_TOPIC} → {PLANS_TABLE}", flush=True)
     print(f"  → {SUBSCRIBERS_TOPIC} → {SUBSCRIBERS_TABLE}", flush=True)
 
