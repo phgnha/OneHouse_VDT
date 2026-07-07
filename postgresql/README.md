@@ -16,14 +16,14 @@ postgresql/
 
 ### `init_billing.sql` — Khởi tạo schema và dữ liệu
 
-Tạo hai bảng chính trong database `viettel_billing`:
+Tạo hai bảng chính trong database `_billing`:
 
 | Bảng | Mô tả |
 |------|--------|
-| `billing_plans` | Danh sách gói cước Viettel (seed 10 gói) |
+| `billing_plans` | Danh sách gói cước  (seed 10 gói) |
 | `subscribers` | Thông tin thuê bao đăng ký |
 
-**Dữ liệu seed `billing_plans`** — 10 gói cước mô phỏng Viettel:
+**Dữ liệu seed `billing_plans`** — 10 gói cước mô phỏng :
 
 | Gói cước | Loại | Giá (VND) |
 |----------|------|-----------|
@@ -50,8 +50,8 @@ Tạo các thành phần cần thiết cho Debezium CDC:
 |---------|---------|
 | Image | `postgres:16-alpine` |
 | Port | `localhost:5432` |
-| User | `viettel` |
-| Database | `viettel_billing` |
+| User | `` |
+| Database | `_billing` |
 | WAL level | `logical` (set qua docker-compose command) |
 
 ## Tích hợp với các thành phần khác
@@ -71,7 +71,7 @@ Tạo các thành phần cần thiết cho Debezium CDC:
 
 ```bash
 # Kết nối vào database
-docker exec -it postgres psql -U viettel -d viettel_billing
+docker exec -it postgres psql -U  -d _billing
 
 # Kiểm tra replication slot
 SELECT * FROM pg_replication_slots;

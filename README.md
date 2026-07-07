@@ -1,6 +1,6 @@
-# OneHouse Streaming Lakehouse — Viettel Digital Talent (VDT)
+# OneHouse Streaming Lakehouse
 
-Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lưu lượng mạng viễn thông Viettel theo thời gian thực (Near Real-time), kết hợp luồng **Telemetry** (dữ liệu hiệu năng mạng) và **CDC** (dữ liệu thay đổi từ hệ thống thanh toán) trên cùng một Data Platform.
+Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lưu lượng mạng viễn thông  theo thời gian thực (Near Real-time), kết hợp luồng **Telemetry** (dữ liệu hiệu năng mạng) và **CDC** (dữ liệu thay đổi từ hệ thống thanh toán) trên cùng một Data Platform.
 
 ## Tổng quan kiến trúc
 
@@ -26,15 +26,15 @@ Nền tảng Streaming Lakehouse giám sát trải nghiệm khách hàng và lư
 │                              ▼                                           │
 │                   ┌─────────────────────┐                                │
 │                   │  MinIO + Iceberg    │                                │
-│                   │  (viettel catalog)  │                                │
+│                   │  ( catalog)  │                                       │
 │                   └─────────────────────┘                                │
 │                              │                                           │
-│            ┌─────────────────┼─────────────────────┐                    │
-│            ▼                 ▼                     ▼                    │
-│     ┌────────────┐   ┌─────────────┐   ┌──────────────────┐            │
-│     │   Trino    │   │     dbt     │   │     Airflow      │            │
-│     │  (Query)   │◀──│  (ELT)     │◀──│  (Orchestrator)  │            │
-│     └────────────┘   └─────────────┘   └──────────────────┘            │
+│            ┌─────────────────                                            │
+│            ▼                                                             │
+│     ┌────────────┐   ┌─────────────┐   ┌──────────────────┐              │
+│     │   Trino    │   │     dbt     │   │     Airflow      │              │
+│     │  (Query)   │◀──│  (ELT)     │◀──│  (Orchestrator)  │              │
+│     └────────────┘   └─────────────┘   └──────────────────┘              │
 │            │                                                            │
 │            ▼                                                            │
 │     ┌─────────────┐                                                     │
@@ -89,7 +89,7 @@ Tài khoản mặc định `admin/admin` cho Airflow, Superset, và MinIO.
 
 ```
 Telecom Simulator → Kafka (topic: telecom.raw_logs) → Spark stream_to_iceberg.py
-    → viettel.bronze.telecom_events (Append, Iceberg Format V2)
+    → .bronze.telecom_events (Append, Iceberg Format V2)
     → dbt: stg_telecom_events → silver_cell_events → gold_network_kpis → gold_cell_heatmap
 ```
 
@@ -98,7 +98,7 @@ Telecom Simulator → Kafka (topic: telecom.raw_logs) → Spark stream_to_iceber
 ```
 PostgreSQL (WAL) → Debezium → Kafka (topics: billing.public.*)
     → Spark cdc_billing_stream.py (foreachBatch + MERGE INTO)
-    → viettel.bronze.billing_plans, viettel.bronze.subscribers (Upsert, Iceberg Format V2)
+    → .bronze.billing_plans, .bronze.subscribers (Upsert, Iceberg Format V2)
     → dbt: stg_billing_plans, stg_subscribers → gold_customer_360 → gold_plan_revenue_impact
 ```
 
@@ -116,34 +116,34 @@ gold_cell_heatmap (Telemetry) + stg_subscribers + stg_billing_plans (CDC)
 ### Bronze (Dữ liệu thô)
 | Bảng | Nguồn | Ghi chú |
 |------|-------|---------|
-| `viettel.bronze.telecom_events` | Kafka Append | Phân vùng theo `days(event_ts), network_type` |
-| `viettel.bronze.billing_plans` | CDC MERGE INTO | Iceberg Format V2, merge-on-read |
-| `viettel.bronze.subscribers` | CDC MERGE INTO | Phân vùng theo `status` |
+| `.bronze.telecom_events` | Kafka Append | Phân vùng theo `days(event_ts), network_type` |
+| `.bronze.billing_plans` | CDC MERGE INTO | Iceberg Format V2, merge-on-read |
+| `.bronze.subscribers` | CDC MERGE INTO | Phân vùng theo `status` |
 
 ### Reference (Dữ liệu tham chiếu)
 | Bảng | Nguồn | Ghi chú |
 |------|-------|---------|
-| `viettel.reference.bts_metadata` | dbt seed (CSV) | 8 trạm BTS: Hà Nội, HCM, Đà Nẵng, Hải Phòng, Cần Thơ, Quảng Ninh |
+| `.reference.bts_metadata` | dbt seed (CSV) | 8 trạm BTS: Hà Nội, HCM, Đà Nẵng, Hải Phòng, Cần Thơ, Quảng Ninh |
 
 ### Staging (Chuẩn hóa)
 | View | Nguồn | Ghi chú |
 |------|-------|---------|
-| `viettel.staging.stg_telecom_events` | `bronze.telecom_events` | Ép kiểu, chuẩn hóa, tính `total_mb`, `is_call_failure`, `has_qoe_issue` |
-| `viettel.staging.stg_billing_plans` | `bronze.billing_plans` | Lọc soft-delete, chuẩn hóa `plan_type` |
-| `viettel.staging.stg_subscribers` | `bronze.subscribers` | Lọc soft-delete, uppercase `home_cell_id` cho JOIN |
+| `.staging.stg_telecom_events` | `bronze.telecom_events` | Ép kiểu, chuẩn hóa, tính `total_mb`, `is_call_failure`, `has_qoe_issue` |
+| `.staging.stg_billing_plans` | `bronze.billing_plans` | Lọc soft-delete, chuẩn hóa `plan_type` |
+| `.staging.stg_subscribers` | `bronze.subscribers` | Lọc soft-delete, uppercase `home_cell_id` cho JOIN |
 
 ### Silver (Làm sạch & Làm giàu)
 | Bảng | Nguồn | Ghi chú |
 |------|-------|---------|
-| `viettel.silver.silver_cell_events` | `stg_telecom_events` + `bts_metadata` | Khử trùng lặp bằng `event_id`, JOIN metadata BTS (tỉnh, huyện, toạ độ) |
+| `.silver.silver_cell_events` | `stg_telecom_events` + `bts_metadata` | Khử trùng lặp bằng `event_id`, JOIN metadata BTS (tỉnh, huyện, toạ độ) |
 
 ### Gold (KPI & Analytics)
 | Bảng | Nguồn | Ghi chú |
 |------|-------|---------|
-| `viettel.gold.gold_network_kpis` | `silver_cell_events` | Incremental MERGE 15 phút, tổng hợp theo `cell_id + network_type` |
-| `viettel.gold.gold_cell_heatmap` | `gold_network_kpis` | View: latest-per-cell, severity = NORMAL/WARNING/CRITICAL |
-| `viettel.gold.gold_customer_360` | `stg_subscribers` + `stg_billing_plans` + `gold_cell_heatmap` | Cross-domain JOIN, `customer_impact_score`, `churn_risk_tier` |
-| `viettel.gold.gold_plan_revenue_impact` | `gold_customer_360` | Tổng hợp theo gói cước, `revenue_at_risk_pct`, `plan_health_status` |
+| `.gold.gold_network_kpis` | `silver_cell_events` | Incremental MERGE 15 phút, tổng hợp theo `cell_id + network_type` |
+| `.gold.gold_cell_heatmap` | `gold_network_kpis` | View: latest-per-cell, severity = NORMAL/WARNING/CRITICAL |
+| `.gold.gold_customer_360` | `stg_subscribers` + `stg_billing_plans` + `gold_cell_heatmap` | Cross-domain JOIN, `customer_impact_score`, `churn_risk_tier` |
+| `.gold.gold_plan_revenue_impact` | `gold_customer_360` | Tổng hợp theo gói cước, `revenue_at_risk_pct`, `plan_health_status` |
 
 ## KPI Definitions
 
@@ -194,7 +194,11 @@ Copy-Item .env.example .env
 # 7. Kiểm tra smoke test
 .\scripts\onehouse.ps1 smoke
 ```
-
+Nếu bị lỗi port, hãy sử dụng lệnh:
+```powershell
+net stop winnat
+net start winnat
+```
 ## Manual Commands
 
 ### Core Streaming Lakehouse
@@ -222,10 +226,10 @@ docker compose --profile tools run --rm dbt docs generate
 
 ```powershell
 # Truy vấn gold Telemetry
-docker exec -it onehouse-trino trino --catalog viettel --schema gold
+docker exec -it onehouse-trino trino --catalog  --schema gold
 
 # Truy vấn Customer 360
-docker exec -i onehouse-trino trino --catalog viettel --schema gold --execute "
+docker exec -i onehouse-trino trino --catalog  --schema gold --execute "
   SELECT subscriber_id, full_name, plan_name, monthly_fee,
          home_cell_severity, churn_risk_tier, customer_impact_score
   FROM gold_customer_360
@@ -295,3 +299,17 @@ docker volume rm onehouse_minio_data onehouse_postgres_billing_data onehouse_air
 - Trino S3/MinIO filesystem: https://trino.io/docs/current/object-storage/file-system-s3.html
 - Debezium PostgreSQL connector: https://debezium.io/documentation/reference/stable/connectors/postgresql.html
 - dbt-trino package: https://pypi.org/project/dbt-trino/
+
+
+--
+
+docker exec -i onehouse-trino trino --execute "
+SELECT event_id, event_ts, cell_id, network_type, event_type,
+       latency_ms, packet_loss_pct, rsrp, sinr
+FROM .bronze.telecom_events
+ORDER BY event_ts DESC
+LIMIT 10
+"
+
+--
+docker exec -i onehouse-trino trino --execute " SELECT plan_id, plan_name, monthly_fee FROM .bronze.billing_plans ORDER BY plan_id "

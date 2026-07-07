@@ -16,6 +16,7 @@ from pyspark.sql.types import (
     BooleanType,
     DoubleType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -51,8 +52,8 @@ PLAN_SCHEMA = StructType([
     StructField("monthly_fee", DoubleType()),
     StructField("data_quota_gb", DoubleType()),
     StructField("voice_minutes", IntegerType()),
-    StructField("created_at", StringType()),
-    StructField("updated_at", StringType()),
+    StructField("created_at", LongType()),
+    StructField("updated_at", LongType()),
     StructField("__deleted", StringType()),  # Cờ cho biết bản ghi đã bị xóa (Debezium rewrite mode)
 ])
 
@@ -63,8 +64,8 @@ SUBSCRIBER_SCHEMA = StructType([
     StructField("plan_id", StringType()),
     StructField("home_cell_id", StringType()),
     StructField("status", StringType()),
-    StructField("activated_at", StringType()),
-    StructField("updated_at", StringType()),
+    StructField("activated_at", LongType()),
+    StructField("updated_at", LongType()),
     StructField("__deleted", StringType()),  # Cờ trạng thái xóa
 ])
 
@@ -222,10 +223,10 @@ def build_cdc_stream(
     )
 
     if "created_at" in [f.name for f in schema.fields]:
-        parsed = parsed.withColumn("created_at", to_timestamp("created_at"))
+        parsed = parsed.withColumn("created_at", (col("created_at") / 1000).cast("timestamp"))
 
     parsed = (
-        parsed.withColumn("updated_at", to_timestamp("updated_at"))
+        parsed.withColumn("updated_at", (col("updated_at") / 1000).cast("timestamp"))
         .withColumn("is_deleted", col("__deleted").eqNullSafe("true")) # Chuyển đổi cờ xóa
         .withColumn("ingested_at", current_timestamp()) # Thời điểm dữ liệu cập bến Iceberg
         .drop("__deleted")
@@ -233,9 +234,9 @@ def build_cdc_stream(
 
     # Chuyển đổi riêng lẻ field `activated_at` nếu nó tồn tại trong schema (chỉ có ở bảng subscribers)
     if "activated_at" in [f.name for f in schema.fields]:
-        parsed = parsed.withColumn("activated_at", to_timestamp("activated_at"))
+        parsed = parsed.withColumn("activated_at", (col("activated_at") / 1000).cast("timestamp"))
 
-    checkpoint_location = f"{CHECKPOINT_BASE}/{checkpoint_suffix}"
+    checkpoint_location = f"{CHECKPOINT_BASE}/{checkpoint_suffix}_v2"
 
     # 3. Kích hoạt luồng Stream bằng cách chạy `foreachBatch` đi kèm hàm Upsert MERGE INTO
     query = (

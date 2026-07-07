@@ -2,7 +2,7 @@
 
 ## Tổng quan
 
-Thư mục `dbt_onehouse/` chứa toàn bộ dbt project thực hiện **data transformation** theo kiến trúc **Medallion** (Staging → Silver → Gold). Project kết nối đến Trino query engine tại `trino:8080`, sử dụng catalog `viettel`, và xử lý dữ liệu telemetry viễn thông cùng billing CDC để tạo ra các bảng phân tích sẵn sàng cho BI/Dashboard.
+Thư mục `dbt_onehouse/` chứa toàn bộ dbt project thực hiện **data transformation** theo kiến trúc **Medallion** (Staging → Silver → Gold). Project kết nối đến Trino query engine tại `trino:8080`, sử dụng catalog ``, và xử lý dữ liệu telemetry viễn thông cùng billing CDC để tạo ra các bảng phân tích sẵn sàng cho BI/Dashboard.
 
 Profile: `onehouse` | Biến chính: `gold_delta_minutes: 30`
 
@@ -64,7 +64,7 @@ dbt_onehouse/
 
 ## Kết nối với các thành phần khác
 
-- **Trino**: dbt gửi SQL đến Trino (`trino:8080`, catalog `viettel`) để thực thi transformation
+- **Trino**: dbt gửi SQL đến Trino (`trino:8080`, catalog ``) để thực thi transformation
 - **Iceberg tables**: Staging models đọc raw data từ Iceberg tables được tạo bởi Spark Streaming và Spark CDC
 - **Superset**: Đọc trực tiếp các bảng Gold để tạo dashboard
 - **Airflow**: Điều phối việc chạy `dbt run` / `dbt test` theo lịch

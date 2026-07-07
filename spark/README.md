@@ -22,7 +22,7 @@ spark/
 | Tham số | Giá trị |
 |---------|---------|
 | Source topic | `telecom.raw_logs` |
-| Target table | `viettel.bronze.telecom_events` |
+| Target table | `.bronze.telecom_events` |
 | Write mode | **Append-only** |
 | Deduplication | Watermark trên `event_ts` |
 | Trigger | Micro-batch mỗi **20 giây** |
@@ -39,7 +39,7 @@ Redpanda → Read Stream → Parse JSON → Watermark Dedup → Append to Iceber
 | Tham số | Giá trị |
 |---------|---------|
 | Source topics | `billing.public.billing_plans`, `billing.public.subscribers` |
-| Target tables | `viettel.bronze.billing_plans`, `viettel.bronze.subscribers` |
+| Target tables | `.bronze.billing_plans`, `.bronze.subscribers` |
 | Write mode | **Upsert** (MERGE INTO) |
 | Table format | Iceberg Format **V2** (row-level deletes) |
 | Soft-delete | Xử lý qua flag `__deleted` |
@@ -56,7 +56,7 @@ Redpanda (Debezium) → Read Stream → foreachBatch → SQL MERGE INTO → Iceb
 
 | Tham số | Giá trị |
 |---------|---------|
-| Catalog name | `viettel` |
+| Catalog name | `` |
 | Catalog type | Hive Metastore (Iceberg) |
 | Checkpoint path | `s3a://warehouse/checkpoints/` |
 | Docker image | Build từ `docker/spark/Dockerfile` |

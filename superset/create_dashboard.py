@@ -122,13 +122,19 @@ def main() -> None:
             database=database,
             table_name="gold_customer_360",
             schema="gold",
-            columns=["subscriber_id", "churn_risk_tier"],
+            columns=[
+                "subscriber_id", "full_name", "plan_name", "monthly_fee",
+                "home_cell_severity", "churn_risk_tier", "customer_impact_score"
+            ],
         )
         revenue_dataset = ensure_dataset(
             database=database,
             table_name="gold_plan_revenue_impact",
             schema="gold",
-            columns=["plan_name", "total_monthly_revenue"],
+            columns=[
+                "plan_name", "total_monthly_revenue", "total_revenue_at_risk",
+                "revenue_at_risk_pct", "plan_health_status"
+            ],
         )
 
         churn_chart = ensure_chart(
@@ -158,6 +164,62 @@ def main() -> None:
             },
         )
 
+        customer_table_chart = ensure_chart(
+            name="Top Risk Customers",
+            dataset=churn_dataset,
+            viz_type="table",
+            params={
+                "datasource": f"{churn_dataset.id}__table",
+                "all_columns": [
+                    "subscriber_id", "full_name", "plan_name", "monthly_fee",
+                    "home_cell_severity", "churn_risk_tier", "customer_impact_score"
+                ],
+                "order_by_cols": ["[\"customer_impact_score\", false]"],
+                "row_limit": 100,
+                "adhoc_filters": [],
+            },
+        )
+
+        customer_scatter_chart = ensure_chart(
+            name="High Fee vs Poor Cell Quality",
+            dataset=churn_dataset,
+            viz_type="echarts_timeseries_scatter",
+            params={
+                "datasource": f"{churn_dataset.id}__table",
+                "x_axis": "monthly_fee",
+                "metrics": [
+                    {
+                        "aggregate": "MAX",
+                        "column": {"column_name": "customer_impact_score"},
+                        "expressionType": "SIMPLE",
+                        "label": "Impact Score"
+                    }
+                ],
+                "groupby": ["subscriber_id"],
+                "row_limit": 1000,
+                "adhoc_filters": [],
+                "time_range": "No filter",
+            },
+        )
+
+        revenue_bar_chart = ensure_chart(
+            name="Revenue at Risk by Plan",
+            dataset=revenue_dataset,
+            viz_type="echarts_timeseries_bar",
+            params={
+                "datasource": f"{revenue_dataset.id}__table",
+                "x_axis": "plan_name",
+                "metrics": [
+                    {"aggregate": "SUM", "column": {"column_name": "total_monthly_revenue"}, "expressionType": "SIMPLE", "label": "Total Revenue"},
+                    {"aggregate": "SUM", "column": {"column_name": "total_revenue_at_risk"}, "expressionType": "SIMPLE", "label": "Revenue at Risk"}
+                ],
+                "groupby": [],
+                "row_limit": 100,
+                "adhoc_filters": [],
+                "time_range": "No filter",
+            },
+        )
+
         dashboard = (
             db.session.query(Dashboard)
             .filter(Dashboard.dashboard_title == "OneHouse Network Experience")
@@ -168,14 +230,17 @@ def main() -> None:
             db.session.add(dashboard)
             db.session.flush()
 
-        dashboard.slices = [heatmap_chart, trend_chart, churn_chart, revenue_chart]
+        dashboard.slices = [
+            heatmap_chart, trend_chart, churn_chart, revenue_chart,
+            customer_table_chart, customer_scatter_chart, revenue_bar_chart
+        ]
         dashboard.position_json = json.dumps(
             {
                 "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
                 "GRID_ID": {
                     "type": "GRID",
                     "id": "GRID_ID",
-                    "children": ["ROW_1", "ROW_2", "ROW_3"],
+                    "children": ["ROW_1", "ROW_2", "ROW_3", "ROW_4", "ROW_5"],
                     "parents": ["ROOT_ID"],
                 },
                 "ROW_1": {
@@ -195,7 +260,21 @@ def main() -> None:
                 "ROW_3": {
                     "type": "ROW",
                     "id": "ROW_3",
-                    "children": ["CHART_CHURN", "CHART_REVENUE"],
+                    "children": ["CHART_CHURN", "CHART_SCATTER"],
+                    "parents": ["ROOT_ID", "GRID_ID"],
+                    "meta": {"background": "BACKGROUND_TRANSPARENT"},
+                },
+                "ROW_4": {
+                    "type": "ROW",
+                    "id": "ROW_4",
+                    "children": ["CHART_CUST_TABLE"],
+                    "parents": ["ROOT_ID", "GRID_ID"],
+                    "meta": {"background": "BACKGROUND_TRANSPARENT"},
+                },
+                "ROW_5": {
+                    "type": "ROW",
+                    "id": "ROW_5",
+                    "children": ["CHART_REVENUE", "CHART_REV_BAR"],
                     "parents": ["ROOT_ID", "GRID_ID"],
                     "meta": {"background": "BACKGROUND_TRANSPARENT"},
                 },
@@ -218,14 +297,35 @@ def main() -> None:
                     "id": "CHART_CHURN",
                     "children": [],
                     "parents": ["ROOT_ID", "GRID_ID", "ROW_3"],
-                    "meta": {"chartId": churn_chart.id, "height": 50, "width": 6},
+                    "meta": {"chartId": churn_chart.id, "height": 50, "width": 4},
+                },
+                "CHART_SCATTER": {
+                    "type": "CHART",
+                    "id": "CHART_SCATTER",
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", "ROW_3"],
+                    "meta": {"chartId": customer_scatter_chart.id, "height": 50, "width": 8},
+                },
+                "CHART_CUST_TABLE": {
+                    "type": "CHART",
+                    "id": "CHART_CUST_TABLE",
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", "ROW_4"],
+                    "meta": {"chartId": customer_table_chart.id, "height": 50, "width": 12},
                 },
                 "CHART_REVENUE": {
                     "type": "CHART",
                     "id": "CHART_REVENUE",
                     "children": [],
-                    "parents": ["ROOT_ID", "GRID_ID", "ROW_3"],
-                    "meta": {"chartId": revenue_chart.id, "height": 50, "width": 6},
+                    "parents": ["ROOT_ID", "GRID_ID", "ROW_5"],
+                    "meta": {"chartId": revenue_chart.id, "height": 50, "width": 4},
+                },
+                "CHART_REV_BAR": {
+                    "type": "CHART",
+                    "id": "CHART_REV_BAR",
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", "ROW_5"],
+                    "meta": {"chartId": revenue_bar_chart.id, "height": 50, "width": 8},
                 },
             }
         )

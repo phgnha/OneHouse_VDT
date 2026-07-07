@@ -17,7 +17,7 @@ configs/
         ├── log.properties             # Mức độ logging
         ├── node.properties            # Thông tin node
         └── catalog/
-            └── viettel.properties     # Iceberg connector catalog
+            └── .properties     # Iceberg connector catalog
 ```
 
 ## Chi tiết từng file
@@ -28,9 +28,9 @@ configs/
 | `jvm.config` | Cấu hình JVM: heap tối đa **2G** (`-Xmx2G`), sử dụng **G1GC** garbage collector, bật HeapDump và ExitOnOutOfMemoryError để xử lý lỗi bộ nhớ |
 | `log.properties` | Thiết lập log level cho Trino server |
 | `node.properties` | Định danh node: environment `onehouse`, node ID `onehouse-trino-coordinator`, data directory `/data/trino` |
-| `viettel.properties` | **Iceberg connector** — tên file quyết định tên catalog trong Trino (catalog = `viettel`) |
+| `.properties` | **Iceberg connector** — tên file quyết định tên catalog trong Trino (catalog = ``) |
 
-## Cấu hình Iceberg Connector (`viettel.properties`)
+## Cấu hình Iceberg Connector (`.properties`)
 
 ```properties
 connector.name=iceberg
@@ -58,7 +58,7 @@ MinIO (Object Storage) ←── S3 protocol ──→ Trino ←── REST API 
                                        (query qua port 8080)
 ```
 
-- **dbt**: kết nối đến Trino tại `trino:8080` để thực thi transformation (catalog `viettel`)
+- **dbt**: kết nối đến Trino tại `trino:8080` để thực thi transformation (catalog ``)
 - **Superset**: kết nối đến Trino để trực quan hóa dữ liệu từ các bảng gold layer
 - **Iceberg REST Catalog**: quản lý metadata của các Iceberg table
 - **MinIO**: lưu trữ Parquet data files của Iceberg
@@ -68,4 +68,4 @@ MinIO (Object Storage) ←── S3 protocol ──→ Trino ←── REST API 
 | Giao diện | URL |
 |-----------|-----|
 | Trino Web UI | `http://localhost:8080` |
-| Trino CLI (trong container) | `docker exec -it onehouse-trino trino --catalog viettel` |
+| Trino CLI (trong container) | `docker exec -it onehouse-trino trino --catalog ` |

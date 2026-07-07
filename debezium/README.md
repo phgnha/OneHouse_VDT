@@ -23,7 +23,7 @@ File `register_billing.json` định nghĩa một **PostgreSQL source connector*
 | Plugin | `pgoutput` |
 | Replication slot | `debezium_slot` |
 | Publication | `billing_publication` |
-| Database | `viettel_billing` |
+| Database | `_billing` |
 
 ### Single Message Transform (SMT)
 

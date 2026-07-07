@@ -42,7 +42,7 @@ wait_for_trino → dbt_debug → dbt_seed → dbt_run (staging, silver)
 | Tham số | Giá trị |
 |---------|---------|
 | Schedule interval | `*/15 * * * *` (mỗi 15 phút) |
-| Catalog | `viettel` |
+| Catalog | `` |
 | Trino host | `trino:8080` |
 | Docker image | Build từ `docker/airflow/Dockerfile` (extends `apache/airflow:2.10.4`) |
 | Webserver port | `http://localhost:8082` |

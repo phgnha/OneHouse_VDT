@@ -46,9 +46,9 @@ File SQL chứa các câu truy vấn kiểm tra nhanh để xác nhận hệ th�
 
 | Câu truy vấn | Mục đích |
 |---------------|----------|
-| `SHOW CATALOGS` | Xác nhận catalog `viettel` đã được đăng ký |
-| `SHOW SCHEMAS FROM viettel` | Kiểm tra các schema (staging, silver, gold) tồn tại |
-| `SHOW TABLES FROM viettel.gold` | Liệt kê các bảng gold layer |
+| `SHOW CATALOGS` | Xác nhận catalog `` đã được đăng ký |
+| `SHOW SCHEMAS FROM ` | Kiểm tra các schema (staging, silver, gold) tồn tại |
+| `SHOW TABLES FROM .gold` | Liệt kê các bảng gold layer |
 | `SELECT ... FROM gold_cell_heatmap` | Truy vấn top 20 trạm BTS có tải cao nhất — kiểm tra dữ liệu thực tế |
 
 ### Chạy smoke test
@@ -58,7 +58,7 @@ File SQL chứa các câu truy vấn kiểm tra nhanh để xác nhận hệ th�
 .\scripts\onehouse.ps1 smoke
 
 # Hoặc chạy trực tiếp
-Get-Content -Raw "scripts/trino_smoke.sql" | docker exec -i onehouse-trino trino --catalog viettel --schema gold
+Get-Content -Raw "scripts/trino_smoke.sql" | docker exec -i onehouse-trino trino --catalog  --schema gold
 ```
 
 ## Kết nối với các thành phần khác

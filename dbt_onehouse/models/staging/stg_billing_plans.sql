@@ -33,7 +33,25 @@ normalized as (
     -- Quy tắc kiểm tra tính hợp lệ cơ bản: Mã gói không được trống, và phí hàng tháng không được âm
     where plan_id is not null
       and monthly_fee >= 0
+),
+
+-- Khử trùng lặp: Chỉ giữ lại bản ghi mới nhất cho mỗi gói cước
+deduped as (
+    select *,
+        row_number() over (partition by plan_id order by updated_at desc) as rn
+    from normalized
 )
 
 -- Trả về dữ liệu cuối cùng đã được chuẩn hóa
-select * from normalized
+select 
+    plan_id,
+    plan_name,
+    plan_type,
+    monthly_fee,
+    data_quota_gb,
+    voice_minutes,
+    created_at,
+    updated_at,
+    ingested_at
+from deduped 
+where rn = 1

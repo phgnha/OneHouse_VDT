@@ -30,7 +30,24 @@ normalized as (
     -- Lọc bỏ các dòng thiếu thông tin định danh và giới hạn các trạng thái hợp lệ
     where subscriber_id is not null
       and status in ('active', 'suspended', 'terminated')
+),
+
+-- Khử trùng lặp: Chỉ giữ lại bản ghi mới nhất cho mỗi thuê bao
+deduped as (
+    select *,
+        row_number() over (partition by subscriber_id order by updated_at desc) as rn
+    from normalized
 )
 
 -- Trả ra output đã qua các bước làm sạch ban đầu
-select * from normalized
+select 
+    subscriber_id,
+    full_name,
+    plan_id,
+    home_cell_id,
+    status,
+    activated_at,
+    updated_at,
+    ingested_at
+from deduped 
+where rn = 1

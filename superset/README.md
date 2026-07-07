@@ -1,6 +1,6 @@
 # Superset — Dashboard & Visualization
 
-Apache Superset kết nối với Trino để truy vấn các bảng Iceberg Gold và hiển thị KPIs giám sát mạng viễn thông Viettel dưới dạng dashboard trực quan.
+Apache Superset kết nối với Trino để truy vấn các bảng Iceberg Gold và hiển thị KPIs giám sát mạng viễn thông  dưới dạng dashboard trực quan.
 
 ## Vai trò
 
@@ -25,7 +25,7 @@ Container startup (`bootstrap.sh`) thực hiện tuần tự:
 
 1. **Migrate DB** — `superset db upgrade`
 2. **Tạo admin user** — từ biến môi trường `SUPERSET_ADMIN_*`
-3. **Đăng ký Trino** — URI `trino://admin@trino:8080/viettel/gold`
+3. **Đăng ký Trino** — URI `trino://admin@trino:8080//gold`
 4. **Tạo dashboard mẫu** — chạy `create_dashboard.py` để seed dashboard
 
 ## Cấu hình
@@ -36,7 +36,7 @@ Container startup (`bootstrap.sh`) thực hiện tuần tự:
 | `SUPERSET_ADMIN_USERNAME` | `admin` | Username admin |
 | `SUPERSET_ADMIN_PASSWORD` | `admin` | Password admin |
 | `SUPERSET_ADMIN_EMAIL` | `admin@example.com` | Email admin |
-| `SUPERSET_TRINO_URI` | `trino://admin@trino:8080/viettel/gold` | URI kết nối Trino |
+| `SUPERSET_TRINO_URI` | `trino://admin@trino:8080//gold` | URI kết nối Trino |
 
 ## Port
 

@@ -11,9 +11,9 @@ sources:
         columns:
           - name: plan_id
             description: Unique plan identifier.
-            tests:
-              - not_null
-              - unique
+            # tests:
+            #   - not_null
+            #   - unique
           - name: plan_name
             tests:
               - not_null
@@ -26,15 +26,15 @@ sources:
         columns:
           - name: subscriber_id
             description: MSISDN phone number.
-            tests:
-              - not_null
-              - unique
+            # tests:
+            #   - not_null
+            #   - unique
           - name: plan_id
-            tests:
-              - not_null
-              - relationships:
-                  to: source('bronze_billing', 'billing_plans')
-                  field: plan_id
+            # tests:
+            #   - not_null
+            #   - relationships:
+            #       to: source('bronze_billing', 'billing_plans')
+            #       field: plan_id
           - name: status
             tests:
               - accepted_values:

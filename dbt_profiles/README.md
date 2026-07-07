@@ -23,7 +23,7 @@ onehouse:
       user: "{{ env_var('TRINO_USER', 'admin') }}"
       host: "{{ env_var('TRINO_HOST', 'trino') }}"
       port: "{{ env_var('TRINO_PORT', '8080') | int }}"
-      database: viettel
+      database: 
       schema: analytics
       http_scheme: http
       threads: 4
@@ -38,7 +38,7 @@ onehouse:
 | `user` | `admin` (mặc định) | Tên người dùng Trino, có thể override qua biến môi trường `TRINO_USER` |
 | `host` | `trino` (mặc định) | Hostname của Trino container trong Docker network, override qua `TRINO_HOST` |
 | `port` | `8080` (mặc định) | Port HTTP của Trino, override qua `TRINO_PORT` |
-| `database` | `viettel` | Tên catalog Iceberg trong Trino (tương ứng file `viettel.properties`) |
+| `database` | `` | Tên catalog Iceberg trong Trino (tương ứng file `.properties`) |
 | `schema` | `analytics` | Schema mặc định khi dbt tạo model (có thể bị override bởi `dbt_project.yml`) |
 | `http_scheme` | `http` | Giao thức kết nối (không dùng TLS trong môi trường dev) |
 | `threads` | `4` | Số model được dbt chạy song song |
@@ -64,11 +64,11 @@ dbt_profiles/profiles.yml ──mount──→ Container dbt (~/.dbt/profiles.ym
                                            │
                                      Trino (trino:8080)
                                            │
-                                     Catalog: viettel (Iceberg)
+                                     Catalog:  (Iceberg)
 ```
 
 - **dbt_onehouse/dbt_project.yml**: Khai báo `profile: onehouse` — trùng khớp với tên profile trong file này
-- **configs/trino/etc/catalog/viettel.properties**: Catalog `viettel` mà dbt kết nối đến
+- **configs/trino/etc/catalog/.properties**: Catalog `` mà dbt kết nối đến
 - **Docker Compose**: Mount file này vào container dbt để tự động cấu hình kết nối
 
 ## Lưu ý
